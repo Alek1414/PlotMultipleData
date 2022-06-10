@@ -65,15 +65,15 @@ class PlotMultipleData:
                                              self.data_set[data_set_id].offset)
 
                 timestamp = self.data_set[data_set_id].data[0][start:end]
-                data = self.data_set[data_set_id].data[data_pos[0][0]][start:end]
+                data = self.data_set[data_set_id].data[data_pos][start:end]
 
                 if axis_data.y_axis == PRIMARY:
                     axis_prim.plot(timestamp, data, list(mcolors.TABLEAU_COLORS)[axis_id])
-                    legend_prim.append('\n'.join(wrap(self.data_set[data_set_id].header[data_pos[0][0]], 25)))
+                    legend_prim.append('\n'.join(wrap(self.data_set[data_set_id].header[data_pos], 25)))
                 else:
                     axis_sec = self.plt_axis[graph_id].twinx()
                     axis_sec.plot(timestamp, data, list(mcolors.TABLEAU_COLORS)[axis_id])
-                    legend_sec.append('\n'.join(wrap(self.data_set[data_set_id].header[data_pos[0][0]], 25)))
+                    legend_sec.append('\n'.join(wrap(self.data_set[data_set_id].header[data_pos], 25)))
 
             axis_prim.legend(legend_prim, bbox_to_anchor=(1.05, 1), loc="upper left")
             axis_prim.set_ylim(graph_data.primary_upper_limit, graph_data.primary_lower_limit)
@@ -102,11 +102,11 @@ class PlotMultipleData:
         data_set_id = None
         data_pos = None
         for data_set_id, data_set in enumerate(self.data_set):
-            data_pos = np.where(self.data_set[data_set_id].header == data_header)
-            if len(data_pos) != 0:
+            data_pos = np.where(np.array(self.data_set[data_set_id].header) == data_header)
+            if len(data_pos[0]) != 0:
                 break
 
-        return data_set_id, data_pos
+        return data_set_id, data_pos[0][0]
 
     def _get_data_pos(self, interval_point, data_set, data_start, offset):
         if type(data_start) == str:
@@ -168,14 +168,20 @@ class PlotMultipleData:
 
 
 if __name__ == "__main__":
-    time = np.arange(0, 10, 0.1)
-    sinus = np.vstack((time, np.sin(time), np.cos(time) * 5, np.tan(time)))
+    time1 = np.arange(0, 10, 0.1)
+    data_set1 = np.vstack((time1, np.sin(time1), np.cos(time1) * 5, np.tan(time1)))
+    header1 = ["Timestamp", "Sinus", "Cosines", "Tangent"]
+    start_time1 = "07.06.2022 14:00:00"
 
-    headers = np.array(["Timestamp", "Sinus", "Cosines", "Tangent"])
-    start_time = "07.06.2022 14:00:00"
+    time2 = np.arange(0, 15, 0.1)
+    data_set2 = np.vstack((time2, time2))
+    header2 = ["Timestamp", "Line"]
+    start_time2 = "07.06.2022 14:00:03"
 
     plot = PlotMultipleData()
-    plot.add_data_set(sinus, headers, start_time)
+
+    plot.add_data_set(data_set1, header1, start_time1)
+    plot.add_data_set(data_set2, header2, start_time2)
 
     plot.add_graph(primary_upper_limit=0.5, primary_lower_limit=-0.5,
                    secondary_upper_limit=2, secondary_lower_limit=-2)
@@ -184,5 +190,6 @@ if __name__ == "__main__":
     plot.graph[0].add_axis("Sinus")
     plot.graph[1].add_axis("Tangent")
     plot.graph[0].add_axis("Cosines", SECONDARY)
+    plot.graph[1].add_axis("Line", SECONDARY)
 
     plot.plot()
