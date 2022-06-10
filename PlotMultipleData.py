@@ -1,260 +1,188 @@
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from textwrap import wrap
-import datetime as datetime
+from datetime import datetime
+from datetime import timedelta
+import numpy as np
+
+PRIMARY = 0
+SECONDARY = 1
 
 
 class PlotMultipleData:
-    def __init__(self, data_sets, headers):
-        self.data_sets = data_sets
-        self.headers = headers
+    def __init__(self):
+        self.data_set = []
+        self.graph = []
 
-        self.primary_axis_layout = None
-        self.secondary_axis_layout = None
-        self.primary_axis_scale = None
-        self.secondary_axis_scale = None
+        self.plt_figure = None
+        self.plt_axis = None
 
-        self.interval_start = None
-        self.interval_end = None
+    def add_data_set(self, data, header, data_start, offset=timedelta(seconds=0, minutes=0, hours=0)):
+        self.data_set.append(self.DataSet(self, data, header, data_start, offset))
 
-        self.figure = None
-        self.axis = None
-
-        #self.data_sets_shape = []
-        #for data in self.data_sets:
-        #    self.data_sets_shape.append(data.shape)
-
-        #for idx, shape in enumerate(self.data_sets_shape):
-        #    if shape[0] != self.headers[idx].shape[0]:
-        #        print("ERROR: Headers and data_sets shape are not the same")
-
-    def str_config_to_list(self, config):
-        config = config.split(" ")
-        str_config = [[]]
-        group_count = 0
-        for x in config:
-            if x == ";":
-                group_count += 1
-                str_config.append([])
-            else:
-                str_config[group_count].append(int(x))
-                
-        return str_config
-
-    def show_data_order(self):
-        index = 0
-        for data_headers in self.headers:
-            for data_name in data_headers[1:]:
-                index += 1
-                print("Arduino DUE data id " + str(index) + ": " + data_name)
-
-    def set_primary_axis_layout(self, config):
-        if type(config) == str:
-            self.primary_axis_layout = self.str_config_to_list(config)
-        else:
-            self.primary_axis_layout = config
-    
-    def set_secondary_axis_layout(self, config):
-        if type(config) == str:
-            self.secondary_axis_layout = self.str_config_to_list(config)
-        else:
-            self.secondary_axis_layout = config
-
-    def set_primary_axis_scale(self, config):
-        if type(config) == str:
-            self.primary_axis_scale = self.str_config_to_list(config)
-        else:
-            self.primary_axis_scale = config
-
-    def set_secondary_axis_scale(self, config):
-        if type(config) == str:
-            self.secondary_axis_scale = self.str_config_to_list(config)
-        else:
-            self.secondary_axis_scale = config
-
-    def set_interval(self, start, end):
-
+    def add_graph(self,
+                  interval_start=None,
+                  interval_end=None,
+                  primary_upper_limit=None,
+                  primary_lower_limit=None,
+                  secondary_upper_limit=None,
+                  secondary_lower_limit=None):
+        self.graph.append(self.GraphData(self,
+                                         interval_start,
+                                         interval_end,
+                                         primary_upper_limit,
+                                         primary_lower_limit,
+                                         secondary_upper_limit,
+                                         secondary_lower_limit))
 
     def plot(self):
-        self.figure, self.axis = plt.subplots(len(layout)+len(hist_layout), 1, figsize =(12, 5*len(layout)))
+        self.plt_figure, self.plt_axis = plt.subplots(len(self.graph), 1, figsize=(12, 5 * len(self.graph)))
+        if len(self.graph) == 1:
+            self.plt_axis = [self.plt_axis]
 
-        for ax_id, axis_layout in enumerate(layout):
-            for plot_id, data_id in enumerate(axis_layout):
-                # DUE
-                if data_id < len(due_data):
-                    plt_timestamp = due_data[0][sid_interval_due:eid_interval_due]
-                    plt_data = due_data[data_id][sid_interval_due:eid_interval_due]
-                    plt_legend = '\n'.join(wrap(due_header[data_id], 25))
-                # Inoson level detector
-                elif data_id >= len(due_data) and data_id < len(due_data) + len(ild_data) - 1:
-                    plt_timestamp = ild_data[0][sid_interval_ild:eid_interval_ild]
-                    plt_data = ild_data[data_id-len(due_data)+1][sid_interval_ild:eid_interval_ild]
-                    plt_legend = '\n'.join(wrap(ild_header[data_id-len(due_data)+1], 25))
-                # Bubble count
-                elif data_id >= len(due_data) + len(ild_data) - 1 and data_id < len(due_data) + len(ild_data) + len(bc_data) - 2:
-                    plt_timestamp = bc_data[0][sid_interval_bc:eid_interval_bc]
-                    plt_data = bc_data[data_id-len(due_data)-len(ild_data)+2][sid_interval_bc:eid_interval_bc]
-                    plt_legend = '\n'.join(wrap(bc_header[data_id-len(due_data)-len(ild_data)+2], 25))
-                # Inoson Flow Sensor
+        for graph_id, graph_data in enumerate(self.graph):
+            legend_prim = []
+            legend_sec = []
+            axis_prim = self.plt_axis[graph_id]
+            axis_sec = None
+            for axis_id, axis_data in enumerate(graph_data.axis):
+                data_set_id, data_pos = self._find_data(axis_data.data_header)
+
+                if graph_data.interval_start is None:
+                    start = 0
                 else:
-                    plt_timestamp = ifs_data[0][sid_interval_ifs:eid_interval_ifs]
-                    plt_data = ifs_data[data_id-len(due_data)-len(ild_data)-len(bc_data)+3][sid_interval_ifs:eid_interval_ifs]
-                    plt_legend = '\n'.join(wrap(ifs_header[data_id-len(due_data)-len(ild_data)-len(bc_data)+3], 25))
-                    
-                
-                if len(layout) == 1:
-                    if scale[ax_id][plot_id] == 1:
-                        axis.plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                        axis.legend(bbox_to_anchor=(1.05,1), loc="upper left")
-                        if len(y1_range[ax_id]) == 2:
-                            axis.set_ylim(y1_range[ax_id][0], y1_range[ax_id][1])
-                    elif scale[ax_id][plot_id] == 2:
-                        axis2 = axis.twinx()
-                        axis2.plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                        axis2.legend(bbox_to_anchor=(1.05,0.5), loc="lower left")
-                        if len(y2_range[ax_id]) == 2:
-                            axis2.set_ylim(y2_range[ax_id][0], y2_range[ax_id][1])
+                    start = self._get_data_pos(graph_data.interval_start,
+                                               self.data_set[data_set_id].data,
+                                               self.data_set[data_set_id].data_start,
+                                               self.data_set[data_set_id].offset)
+
+                if graph_data.interval_end is None:
+                    end = -1
                 else:
-                    if scale[ax_id][plot_id] == 1:
-                        axis[ax_id].plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                        axis[ax_id].legend(bbox_to_anchor=(1.05,1), loc="upper left")
-                        if len(y1_range[ax_id]) == 2:
-                            axis[ax_id].set_ylim(y1_range[ax_id][0], y1_range[ax_id][1])
-                    elif scale[ax_id][plot_id] == 2:
-                        axis2 = axis[ax_id].twinx()
-                        axis2.plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                        axis2.legend(bbox_to_anchor=(1.05,0.5), loc="lower left")
-                        if len(y2_range[ax_id]) == 2:
-                            axis2.set_ylim(y2_range[ax_id][0], y2_range[ax_id][1])
+                    end = self._get_data_pos(graph_data.interval_end,
+                                             self.data_set[data_set_id].data,
+                                             self.data_set[data_set_id].data_start,
+                                             self.data_set[data_set_id].offset)
 
-        if len(layout) == 1:
-            axis.set_xlabel("Timestamp [s]")    
-        else:
-            axis[len(layout)-1].set_xlabel("Timestamp [s]")
+                timestamp = self.data_set[data_set_id].data[0][start:end]
+                data = self.data_set[data_set_id].data[data_pos[0][0]][start:end]
 
-        figure.subplots_adjust(left=0.038, right=0.862, bottom=0.062, top=0.98, hspace=0.088)
+                if axis_data.y_axis == PRIMARY:
+                    axis_prim.plot(timestamp, data, list(mcolors.TABLEAU_COLORS)[axis_id])
+                    legend_prim.append('\n'.join(wrap(self.data_set[data_set_id].header[data_pos[0][0]], 25)))
+                else:
+                    axis_sec = self.plt_axis[graph_id].twinx()
+                    axis_sec.plot(timestamp, data, list(mcolors.TABLEAU_COLORS)[axis_id])
+                    legend_sec.append('\n'.join(wrap(self.data_set[data_set_id].header[data_pos[0][0]], 25)))
+
+            axis_prim.legend(legend_prim, bbox_to_anchor=(1.05, 1), loc="upper left")
+            axis_prim.set_ylim(graph_data.primary_upper_limit, graph_data.primary_lower_limit)
+            if len(legend_sec) != 0:
+                axis_sec.legend(legend_sec, bbox_to_anchor=(1.05, 0.5), loc="upper left")
+                axis_sec.set_ylim(graph_data.secondary_upper_limit, graph_data.secondary_lower_limit)
+
+        self.plt_axis[-1].set_xlabel("Timestamp [s]")
+        self.plt_figure.subplots_adjust(left=0.038, right=0.862, bottom=0.062, top=0.98, hspace=0.088)
         mng = plt.get_current_fig_manager()
         mng.resize(1800, 900)
         plt.tight_layout()
 
-        figure.suptitle(infostring, fontsize=16, y=1.05)
-        plt.show()   
+        # self.plt_figure.suptitle("aaaaaa", fontsize=16, y=1.05)
+        plt.show()
 
-    def save_pdf(self, fiel_name):
-        figurefilename=""+"Plot_"+fiel_name+"_"+datetime.now().strftime("%y%m%d_%H%M")+".pdf"
-        figure.savefig(figurefilename,bbox_inches="tight")
+    def save_pdf(self, file_name, date_time="%y%m%d_%H%M"):
+        # figurefilename = "" + "Plot_" + file_name + "_" + datetime.now().strftime("%y%m%d_%H%M") + ".pdf"
+        # figure.savefig(figurefilename, bbox_inches="tight")
+        pass
 
+    def reset(self):
+        pass
 
-# Defines the layout of the plotted data
-# the column indexes separeted with a space to show in one graph and each graph separeted with a semicolon 
-# EXAMPLE: 2 4 ; 7 8
-#graph_layout = "3 5 ; 18 ; 19"
-#graph_layout = "3 5 ; 19 ; 38 ; 32 ; 33 ; 34 ; 35 ; 36"
-#graph_layout = "3 5 ; 18 ; 19"
-#graph_layout = "40 ; 23 ; 24 ; 25 ; 26 ; 27 ; 28 ; 29 ; 30 ; 31 ; 32 ; 33 ; 34 ; 35 ; 36"
-#graph_layout = "27 ; 28 ; 29 ; 30"
-graph_layout = "38 30 ; 40 ; 31 ; 32 ; 46 ; 47 ; 73"
-scale_select = "1 2 ; 1 ; 1 ; 1 ; 1 ; 1 ; 1"
+    def _find_data(self, data_header):
+        data_set_id = None
+        data_pos = None
+        for data_set_id, data_set in enumerate(self.data_set):
+            data_pos = np.where(self.data_set[data_set_id].header == data_header)
+            if len(data_pos) != 0:
+                break
 
-# Defines the range of all the y axis
-# The vlues separeted with a space correspond to the start and end of the range
-# The ranges for each graph is separeted with a semicolon
-# Automatic range is set by leving just one value between semicolons instead of two
-y1_range = "0 ; 0 ; 0 ; 0 ; 0 ; 0 ; 0"
-y2_range = "0 ; 0 ; 0 ; 0 ; 0 ; 0 ; 0"
+        return data_set_id, data_pos
 
-additional_histograms = ""
-
-normed=True
-amount_of_bins= 31 #240
-
-layout = str_config_to_list(graph_layout)
-scale = str_config_to_list(scale_select)
-y1_range = str_config_to_list(y1_range)
-y1_range = str_config_to_list(y2_range)
-
-if additional_histograms != "":
-    hist_layout = additional_histograms.split(" ")
-else:
-    hist_layout = []
-
-figure, axis = plt.subplots(len(layout)+len(hist_layout), 1, figsize =(12, 5*len(layout)))
-
-for ax_id, axis_layout in enumerate(layout):
-    for plot_id, data_id in enumerate(axis_layout):
-        # DUE
-        if data_id < len(due_data):
-            plt_timestamp = due_data[0][sid_interval_due:eid_interval_due]
-            plt_data = due_data[data_id][sid_interval_due:eid_interval_due]
-            plt_legend = '\n'.join(wrap(due_header[data_id], 25))
-        # Inoson level detector
-        elif data_id >= len(due_data) and data_id < len(due_data) + len(ild_data) - 1:
-            plt_timestamp = ild_data[0][sid_interval_ild:eid_interval_ild]
-            plt_data = ild_data[data_id-len(due_data)+1][sid_interval_ild:eid_interval_ild]
-            plt_legend = '\n'.join(wrap(ild_header[data_id-len(due_data)+1], 25))
-        # Bubble count
-        elif data_id >= len(due_data) + len(ild_data) - 1 and data_id < len(due_data) + len(ild_data) + len(bc_data) - 2:
-            plt_timestamp = bc_data[0][sid_interval_bc:eid_interval_bc]
-            plt_data = bc_data[data_id-len(due_data)-len(ild_data)+2][sid_interval_bc:eid_interval_bc]
-            plt_legend = '\n'.join(wrap(bc_header[data_id-len(due_data)-len(ild_data)+2], 25))
-        # Inoson Flow Sensor
+    def _get_data_pos(self, interval_point, data_set, data_start, offset):
+        if type(data_start) == str:
+            data_start = datetime.strptime(data_start, "%d.%m.%Y %H:%M:%S")
+        if type(offset) != timedelta:
+            offset = timedelta(seconds=offset).total_seconds()
         else:
-            plt_timestamp = ifs_data[0][sid_interval_ifs:eid_interval_ifs]
-            plt_data = ifs_data[data_id-len(due_data)-len(ild_data)-len(bc_data)+3][sid_interval_ifs:eid_interval_ifs]
-            plt_legend = '\n'.join(wrap(ifs_header[data_id-len(due_data)-len(ild_data)-len(bc_data)+3], 25))
-            
-        
-        if len(layout) == 1:
-            if scale[ax_id][plot_id] == 1:
-                axis.plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                axis.legend(bbox_to_anchor=(1.05,1), loc="upper left")
-                if len(y1_range[ax_id]) == 2:
-                    axis.set_ylim(y1_range[ax_id][0], y1_range[ax_id][1])
-            elif scale[ax_id][plot_id] == 2:
-                axis2 = axis.twinx()
-                axis2.plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                axis2.legend(bbox_to_anchor=(1.05,0.5), loc="lower left")
-                if len(y2_range[ax_id]) == 2:
-                    axis2.set_ylim(y2_range[ax_id][0], y2_range[ax_id][1])
+            offset = offset.total_seconds()
+
+
+        if type(interval_point) == str:
+            print(datetime.strptime(interval_point, "%d.%m.%Y %H:%M:%S"))
+            seconds = datetime.strptime(interval_point, "%d.%m.%Y %H:%M:%S") - data_start
+            seconds = seconds.total_seconds() - offset
         else:
-            if scale[ax_id][plot_id] == 1:
-                axis[ax_id].plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                axis[ax_id].legend(bbox_to_anchor=(1.05,1), loc="upper left")
-                if len(y1_range[ax_id]) == 2:
-                    axis[ax_id].set_ylim(y1_range[ax_id][0], y1_range[ax_id][1])
-            elif scale[ax_id][plot_id] == 2:
-                axis2 = axis[ax_id].twinx()
-                axis2.plot(plt_timestamp, plt_data, list(mcolors.TABLEAU_COLORS)[plot_id], label=plt_legend)
-                axis2.legend(bbox_to_anchor=(1.05,0.5), loc="lower left")
-                if len(y2_range[ax_id]) == 2:
-                    axis2.set_ylim(y2_range[ax_id][0], y2_range[ax_id][1])
-            
-# plot histograms
-for ax_id, axis_layout in enumerate(hist_layout, len(layout)):
-    if axis_layout == "5":
-        axis[ax_id].hist(due_data[int(axis_layout)], amount_of_bins, density=normed, label='\n'.join(wrap("Histogram ABD Serial_2", 25)))
-        axis[ax_id].legend(bbox_to_anchor=(1, 1), loc='upper left', borderaxespad=0)
-    if axis_layout == "3":
-        axis[ax_id].hist(due_data[int(axis_layout)], amount_of_bins, density=normed, label='\n'.join(wrap("Histogram ABD Serial_1", 25)))
-        axis[ax_id].legend(bbox_to_anchor=(1, 1), loc='upper left', borderaxespad=0)
+            seconds = interval_point - offset
 
-if len(layout) == 1:
-    axis.set_xlabel("Timestamp [s]")    
-else:
-    axis[len(layout)-1].set_xlabel("Timestamp [s]")       
-#left  = 0.125  # the left side of the subplots of the figure
-#right = 0.9    # the right side of the subplots of the figure
-#bottom = 0.1   # the bottom of the subplots of the figure
-#top = 0.9      # the top of the subplots of the figure
-#wspace = 0.2   # the amount of width reserved for blank space between subplots
-#hspace = 0.2   # the amount of height reserved for white space between subplots
-figure.subplots_adjust(left=0.038, right=0.862, bottom=0.062, top=0.98, hspace=0.088)
-mng = plt.get_current_fig_manager()
-mng.resize(1800, 900)
-plt.tight_layout()
+        for timestamp_id, value in enumerate(data_set[0]):
+            if seconds <= value:
+                return timestamp_id
 
-figure.suptitle(infostring, fontsize=16, y=1.05)
-plt.show()
+        return -1
+
+    class DataSet:
+        def __init__(self, parent, data, header, data_start, offset):
+            self.data = data
+            self.header = header
+            self.data_start = data_start
+            self.offset = offset
+
+    class GraphData:
+        def __init__(self,
+                     parent,
+                     interval_start,
+                     interval_end,
+                     primary_upper_limit,
+                     primary_lower_limit,
+                     secondary_upper_limit,
+                     secondary_lower_limit):
+            self.parent = parent
+            self.axis = []
+            self.interval_start = interval_start
+            self.interval_end = interval_end
+            self.primary_upper_limit = primary_upper_limit
+            self.primary_lower_limit = primary_lower_limit
+            self.secondary_upper_limit = secondary_upper_limit
+            self.secondary_lower_limit = secondary_lower_limit
+            # self.type = None
+            # self.x_format = None
+            pass
+
+        def add_axis(self, data_header, y_axis=PRIMARY):
+            self.axis.append(self.AxisData(data_header, y_axis))
+
+        class AxisData:
+            def __init__(self, data_header, y_axis):
+                self.data_header = data_header
+                self.y_axis = y_axis
 
 
+if __name__ == "__main__":
+    time = np.arange(0, 10, 0.1)
+    sinus = np.vstack((time, np.sin(time), np.cos(time) * 5, np.tan(time)))
 
+    headers = np.array(["Timestamp", "Sinus", "Cosines", "Tangent"])
+    start_time = "07.06.2022 14:00:00"
+
+    plot = PlotMultipleData()
+    plot.add_data_set(sinus, headers, start_time)
+
+    plot.add_graph(primary_upper_limit=0.5, primary_lower_limit=-0.5,
+                   secondary_upper_limit=2, secondary_lower_limit=-2)
+    plot.add_graph(interval_start=1.5, interval_end=5)
+    #plot.add_graph()
+    plot.graph[0].add_axis("Sinus")
+    plot.graph[1].add_axis("Tangent")
+    plot.graph[0].add_axis("Cosines", SECONDARY)
+
+    plot.plot()
